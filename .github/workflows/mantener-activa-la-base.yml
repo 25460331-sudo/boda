@@ -1,0 +1,18 @@
+# Los proyectos gratuitos de Supabase se pausan si pasa una semana sin uso.
+# Este aviso automático consulta la base dos veces por semana para que siga despierta.
+name: Mantener activa la base
+on:
+  schedule:
+    - cron: '17 9 * * 1,4'
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Consultar la base
+        run: |
+          URL=$(grep -oP "supabaseUrl:\s*'\K[^']+" js/config.js | head -1)
+          KEY=$(grep -oP "supabaseKey:\s*'\K[^']+" js/config.js | head -1)
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then echo "js/config.js todavía no tiene la base conectada"; exit 0; fi
+          curl -fsS -X POST "$URL/rest/v1/rpc/ping" -H "apikey: $KEY" -H "Content-Type: application/json" -d '{}'

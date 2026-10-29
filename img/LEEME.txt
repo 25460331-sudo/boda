@@ -1,0 +1,3 @@
+Copiá acá la foto de "Nuestra historia" (por ejemplo historia.jpg)
+y escribí su nombre en js/config.js → storyPhoto: 'img/historia.jpg'
+Conviene que pese menos de 500 KB (se ve más rápido en el celular).
