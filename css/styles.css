@@ -198,7 +198,7 @@ body.theme-green .flora-card{display:none}
 .gift-frame{position:relative;max-width:720px;margin:0 auto;padding:clamp(2.6rem,8vw,4.5rem) clamp(1.2rem,5vw,3rem);border:1px solid rgba(183,156,95,.7)}
 .gift-frame::before{content:"";position:absolute;inset:7px;border:1px solid rgba(183,156,95,.3);pointer-events:none}
 .gift-micro{margin:0 0 1rem;color:var(--gold);letter-spacing:.3em}
-.gift h2{margin:0 auto;font-size:clamp(44px,11vw,68px);color:var(--band-ink);max-width:13ch}
+.gift h2{margin:0 auto;font-size:clamp(38px,9.4vw,60px);color:var(--band-ink);max-width:19ch;text-wrap:balance}
 .gift-text{max-width:30rem;margin:1.4rem auto 1.8rem;color:rgba(238,242,238,.86);font-size:1.12rem}
 .bank{margin:2rem auto 0;max-width:520px;text-align:left;border-top:1px solid rgba(183,156,95,.5)}
 .bank-row{display:grid;grid-template-columns:1fr auto;gap:.1rem .8rem;align-items:center;padding:1rem .2rem;border-bottom:1px solid rgba(183,156,95,.3)}
