@@ -13,5 +13,5 @@ window.BODA = {
 
   // Foto de "Nuestra historia" (la elige Ema): copiá la foto a la carpeta img/
   // y escribí acá su ruta, por ejemplo: 'img/historia.jpg'. Vacío = recuadro "FOTO".
-  storyPhoto: ''
+  storyPhoto: 'img/historia.webp'
 };
