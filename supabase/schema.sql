@@ -144,7 +144,7 @@ begin
     'message', coalesce(v_inv.message, ''),
     'paysCard', v_inv.pays_card,
     'bank', v_cfg -> 'bank'
-  );
+  ) || case when v_inv.pays_card then jsonb_build_object('paymentNote', public.payment_note_()) else '{}'::jsonb end;
 end $$;
 
 -- ---------- 2) Guardar la respuesta de cada persona ----------

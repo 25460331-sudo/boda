@@ -30,6 +30,7 @@
       ok: true, invitationId: 'DEMO-PAGA', groupName: 'Familia Demo con tarjeta',
       guests: [{id:'3', name:'Invitado 1', attendance:''}, {id:'4', name:'Invitado 2', attendance:''}],
       paysCard: true,
+      paymentNote: 'Hacemos este festejo entre todos para poder celebrar juntos. El valor de la tarjeta por invitado es de $000.000. ¡Te esperamos para brindar! Por favor, confirmar asistencia y abonar hasta el 31/01/2027.',
       bank: { name: 'Banco de ejemplo', holders: 'Titular de ejemplo', cbu: '0000000000000000000000', alias: 'alias.ejemplo' }
     }
   };
@@ -248,6 +249,9 @@
 
     document.getElementById('rsvpMessage').value = data.message || '';
     fillBank(data.bank);
+    const payNote = document.getElementById('payNote');
+    payNote.textContent = data.paymentNote || '';
+    payNote.hidden = !data.paymentNote;
     applyVariant(!!data.paysCard); // Privado: jamás se muestra si paga o no paga.
   }
 
