@@ -51,6 +51,12 @@
     .pay-btn{display:block;margin-top:6px;padding:5px 10px;font-size:11px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
     .pay-btn.paid{background:var(--yes);color:#fff;border-color:var(--yes)}
     .wa{display:inline-block;padding:6px 12px;border-radius:999px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-size:12px;white-space:nowrap}
+    .receipts{margin-top:8px;display:grid;gap:4px;max-width:220px}
+    .rc-row{display:flex;gap:6px;align-items:center}
+    .rc-open{flex:1;min-width:0;text-align:left;padding:4px 8px;font-size:11px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rc-del{padding:4px 8px;font-size:11px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
+    .rc-add{padding:5px 10px;font-size:11px;border-radius:999px;border:1px dashed var(--line);background:transparent;color:var(--ink);cursor:pointer;justify-self:start}
+    .rc-open:disabled,.rc-del:disabled,.rc-add:disabled{opacity:.55;cursor:wait}
     .phone-btn{padding:5px 10px;font-size:11px;border-radius:999px;border:1px dashed var(--line);background:transparent;color:var(--muted);cursor:pointer}
     [hidden]{display:none!important}
   </style>
@@ -81,6 +87,7 @@
         <button class="chip" type="button" data-f="no" aria-pressed="false">No asisten</button>
         <button class="chip" type="button" data-f="pend" aria-pressed="false">Sin responder</button>
         <button class="chip" type="button" data-f="unpaid" aria-pressed="false">Falta pagar</button>
+        <button class="chip" type="button" data-f="norc" aria-pressed="false">Sin comprobante</button>
       </div>
       <button id="reload" class="ghost" type="button">Actualizar</button>
       <button id="csv" class="ghost" type="button">Descargar Excel (CSV)</button>

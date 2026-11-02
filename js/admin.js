@@ -64,6 +64,7 @@
     if (filter === 'no') return inv.guests.some(g => g.attendance === 'no');
     if (filter === 'pend') return inv.guests.some(g => !g.attendance);
     if (filter === 'unpaid') return inv.paysCard && !inv.paid;
+    if (filter === 'norc') return inv.paysCard && !(inv.receipts && inv.receipts.length);
     return true;
   }
 
@@ -108,6 +109,7 @@
         pb.textContent = inv.paid ? 'Pagó ✓' : 'Marcar como pagada';
         pb.addEventListener('click', () => setPaid(inv, !inv.paid, pb));
         c3.appendChild(pb);
+        c3.appendChild(receiptsCell(inv));
       }
       const c4 = document.createElement('td');
       inv.guests.forEach(g => {
@@ -181,6 +183,114 @@
     return wrap;
   }
 
+  // ---- Comprobantes de pago (los mandan por WhatsApp y se cargan acá) ----
+  function receiptsCell(inv) {
+    const box = document.createElement('div');
+    box.className = 'receipts';
+    (inv.receipts || []).forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'rc-row';
+      const open = document.createElement('button');
+      open.type = 'button'; open.className = 'rc-open'; open.textContent = r.name; open.title = r.name;
+      open.addEventListener('click', () => openReceipt(r, open));
+      const del = document.createElement('button');
+      del.type = 'button'; del.className = 'rc-del'; del.textContent = 'Quitar';
+      del.setAttribute('aria-label', 'Quitar el comprobante ' + r.name);
+      del.addEventListener('click', () => deleteReceipt(r, del));
+      row.append(open, del);
+      box.appendChild(row);
+    });
+    const add = document.createElement('button');
+    add.type = 'button'; add.className = 'rc-add'; add.textContent = '＋ Adjuntar comprobante';
+    const file = document.createElement('input');
+    file.type = 'file'; file.accept = 'image/*,application/pdf'; file.hidden = true;
+    file.setAttribute('aria-label', 'Elegir comprobante de ' + inv.group);
+    add.addEventListener('click', () => file.click());
+    file.addEventListener('change', () => { if (file.files[0]) addReceipt(inv, file.files[0], add); });
+    box.append(add, file);
+    return box;
+  }
+
+  const toBase64 = blob => new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result).split(',')[1] || '');
+    fr.onerror = () => reject(new Error('No se pudo leer el archivo.'));
+    fr.readAsDataURL(blob);
+  });
+
+  // Las fotos se achican (máx. 1600 px, JPEG) para que pesen poco; los PDF van tal cual (hasta 1,5 MB).
+  async function prepareFile(file) {
+    if (file.type === 'application/pdf') {
+      if (file.size > 1500000) throw new Error('El PDF pesa más de 1,5 MB. Sacale una captura y adjuntá la foto.');
+      return { mime: 'application/pdf', name: file.name, data: await toBase64(file) };
+    }
+    if (!/^image\//.test(file.type)) throw new Error('Adjuntá una foto o un PDF.');
+    let bmp;
+    try { bmp = await createImageBitmap(file); } catch (e) { throw new Error('No pude leer esa imagen. Probá con una captura de pantalla (JPG o PNG).'); }
+    let side = 1600, quality = 0.82, blob = null;
+    for (let i = 0; i < 4; i++) {
+      const k = Math.min(1, side / Math.max(bmp.width, bmp.height));
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.round(bmp.width * k)); cv.height = Math.max(1, Math.round(bmp.height * k));
+      const cx = cv.getContext('2d');
+      cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+      cx.drawImage(bmp, 0, 0, cv.width, cv.height);
+      blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', quality));
+      if (blob && blob.size <= 900000) break;
+      side = Math.round(side * 0.75); quality = Math.max(0.55, quality - 0.1);
+    }
+    if (!blob || blob.size > 1500000) throw new Error('La imagen sigue pesando mucho. Probá con otra captura.');
+    return { mime: 'image/jpeg', name: String(file.name || 'comprobante').replace(/\.[^.]+$/, '') + '.jpg', data: await toBase64(blob) };
+  }
+
+  async function addReceipt(inv, file, btn) {
+    btn.disabled = true;
+    $('updated').textContent = 'Subiendo comprobante…';
+    try {
+      const f = await prepareFile(file);
+      const r = await rpc('admin_add_receipt', { p_key: key, p_pin: inv.pin, p_name: f.name, p_mime: f.mime, p_data: f.data });
+      if (!r.ok) throw new Error(r.message || 'error');
+      await load();
+      $('updated').textContent = 'Comprobante guardado ✓';
+    } catch (e) {
+      btn.disabled = false;
+      $('updated').textContent = 'No se pudo guardar el comprobante: ' + e.message;
+    }
+  }
+
+  async function openReceipt(r, btn) {
+    btn.disabled = true;
+    try {
+      const x = await rpc('admin_get_receipt', { p_key: key, p_id: r.id });
+      if (!x.ok) throw new Error(x.message || 'error');
+      const bin = atob(x.data);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([bytes], { type: x.mime }));
+      const a = document.createElement('a');
+      a.href = url; a.target = '_blank'; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
+    } catch (e) {
+      $('updated').textContent = 'No se pudo abrir el comprobante: ' + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function deleteReceipt(r, btn) {
+    if (window.confirm && !window.confirm('¿Quitar este comprobante?')) return;
+    btn.disabled = true;
+    try {
+      const x = await rpc('admin_delete_receipt', { p_key: key, p_id: r.id });
+      if (!x.ok) throw new Error(x.message || 'error');
+      await load();
+    } catch (e) {
+      btn.disabled = false;
+      $('updated').textContent = 'No se pudo quitar el comprobante: ' + e.message;
+    }
+  }
+
   async function setPaid(inv, value, btn) {
     btn.disabled = true;
     try {
@@ -196,9 +306,9 @@
   // Descarga CSV (con BOM para que Excel respete los acentos)
   $('csv').addEventListener('click', () => {
     const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-    const lines = [['Código', 'Grupo', 'Categoría', 'Tarjeta', 'Pago', 'Teléfono', 'Invitado', 'Asistencia', 'Restricción alimentaria', 'Mensaje', 'Respondió'].map(esc).join(';')];
+    const lines = [['Código', 'Grupo', 'Categoría', 'Tarjeta', 'Pago', 'Teléfono', 'Invitado', 'Asistencia', 'Restricción alimentaria', 'Mensaje', 'Respondió', 'Comprobantes'].map(esc).join(';')];
     data.invitations.forEach(inv => inv.guests.forEach(g => {
-      lines.push([inv.pin, inv.group, inv.category, inv.paysCard ? 'PAGA' : 'DIRECTO', inv.paysCard ? (inv.paid ? 'Pagó' : 'Falta pagar') : '', inv.phone, g.name, label(g.attendance), g.diet, inv.message, g.at || ''].map(esc).join(';'));
+      lines.push([inv.pin, inv.group, inv.category, inv.paysCard ? 'PAGA' : 'DIRECTO', inv.paysCard ? (inv.paid ? 'Pagó' : 'Falta pagar') : '', inv.phone, g.name, label(g.attendance), g.diet, inv.message, g.at || '', inv.paysCard ? (inv.receipts || []).length : ''].map(esc).join(';'));
     }));
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');

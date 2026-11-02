@@ -49,13 +49,25 @@ create table if not exists public.failed_attempts (
 );
 create index if not exists failed_attempts_ip_at_idx on public.failed_attempts(ip, at);
 
+-- Comprobantes de pago de la tarjeta (los carga Natalia desde el panel; el archivo viaja en base64)
+create table if not exists public.receipts (
+  id            bigint generated always as identity primary key,
+  invitation_id bigint not null references public.invitations(id) on delete cascade,
+  file_name     text not null,
+  mime          text not null check (mime in ('image/jpeg','image/png','image/webp','application/pdf')),
+  data          text not null,
+  created_at    timestamptz not null default now()
+);
+create index if not exists receipts_invitation_idx on public.receipts(invitation_id);
+
 -- ---------- Cerrar las tablas al público ----------
 alter table public.invitations     enable row level security;
 alter table public.guests          enable row level security;
 alter table public.settings        enable row level security;
 alter table public.failed_attempts enable row level security;
+alter table public.receipts        enable row level security;
 
-revoke all on public.invitations, public.guests, public.settings, public.failed_attempts from anon, authenticated;
+revoke all on public.invitations, public.guests, public.settings, public.failed_attempts, public.receipts from anon, authenticated;
 
 -- Vista cómoda para mirar la lista desde el Table Editor (cerrada al público)
 drop view if exists public.lista_invitados;   -- se recrea (Postgres no deja reordenar columnas de una vista existente)
@@ -235,6 +247,9 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object(
            'pin', i.pin, 'group', i.group_name, 'paysCard', i.pays_card,
            'paid', i.paid, 'phone', coalesce(i.phone, ''), 'category', coalesce(i.category, ''), 'message', coalesce(i.message, ''),
+           'receipts', (select coalesce(jsonb_agg(jsonb_build_object('id', r.id::text, 'name', r.file_name, 'at', r.created_at)
+                                                  order by r.id), '[]'::jsonb)
+                        from public.receipts r where r.invitation_id = i.id),
            'guests', (select coalesce(jsonb_agg(jsonb_build_object(
                          'name', g.name, 'attendance', coalesce(g.attendance, ''),
                          'diet', coalesce(g.diet, ''), 'at', g.responded_at)
@@ -267,6 +282,51 @@ begin
   if not (v_chk ->> 'ok')::boolean then return v_chk; end if;
   update public.invitations set phone = nullif(left(regexp_replace(coalesce(p_phone, ''), '[^0-9+]', '', 'g'), 20), '')
    where pin = p_pin;
+  get diagnostics v_n = row_count;
+  return jsonb_build_object('ok', v_n = 1);
+end $$;
+
+-- ---------- Comprobantes de pago (solo con la clave de administración) ----------
+create or replace function public.admin_add_receipt(p_key text, p_pin text, p_name text, p_mime text, p_data text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_chk jsonb := public.admin_check_(p_key); v_inv bigint; v_id bigint;
+begin
+  if not (v_chk ->> 'ok')::boolean then return v_chk; end if;
+  if p_mime is null or p_mime not in ('image/jpeg','image/png','image/webp','application/pdf') then
+    return jsonb_build_object('ok', false, 'message', 'Formato no admitido (usá foto o PDF).');
+  end if;
+  if p_data is null or length(p_data) = 0 or length(p_data) > 2800000 or p_data ~ '[^A-Za-z0-9+/=]' then
+    return jsonb_build_object('ok', false, 'message', 'El archivo es demasiado pesado o no es válido.');
+  end if;
+  select id into v_inv from public.invitations where pin = p_pin;
+  if v_inv is null then return jsonb_build_object('ok', false, 'message', 'Invitación inexistente.'); end if;
+  if (select count(*) from public.receipts where invitation_id = v_inv) >= 10 then
+    return jsonb_build_object('ok', false, 'message', 'Ya hay 10 comprobantes en esta invitación.');
+  end if;
+  insert into public.receipts(invitation_id, file_name, mime, data)
+  values (v_inv, coalesce(nullif(left(trim(coalesce(p_name, '')), 120), ''), 'comprobante'), p_mime, p_data)
+  returning id into v_id;
+  return jsonb_build_object('ok', true, 'id', v_id::text);
+end $$;
+
+create or replace function public.admin_get_receipt(p_key text, p_id text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_chk jsonb := public.admin_check_(p_key); v_r public.receipts;
+begin
+  if not (v_chk ->> 'ok')::boolean then return v_chk; end if;
+  if p_id is null or p_id !~ '^[0-9]{1,18}$' then return jsonb_build_object('ok', false, 'message', 'Comprobante inexistente.'); end if;
+  select * into v_r from public.receipts where id = p_id::bigint;
+  if not found then return jsonb_build_object('ok', false, 'message', 'Comprobante inexistente.'); end if;
+  return jsonb_build_object('ok', true, 'name', v_r.file_name, 'mime', v_r.mime, 'data', v_r.data);
+end $$;
+
+create or replace function public.admin_delete_receipt(p_key text, p_id text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_chk jsonb := public.admin_check_(p_key); v_n int;
+begin
+  if not (v_chk ->> 'ok')::boolean then return v_chk; end if;
+  if p_id is null or p_id !~ '^[0-9]{1,18}$' then return jsonb_build_object('ok', false); end if;
+  delete from public.receipts where id = p_id::bigint;
   get diagnostics v_n = row_count;
   return jsonb_build_object('ok', v_n = 1);
 end $$;
@@ -326,8 +386,10 @@ revoke all on function public.client_ip_(), public.is_locked_(text), public.regi
   public.admin_check_(text), public.set_admin_key(text), public.add_invitation(text, boolean, text[], text, text)
   from public, anon, authenticated;
 revoke all on function public.get_invitation(text), public.save_rsvp(text, jsonb, text), public.admin_summary(text),
-  public.admin_set_paid(text, text, boolean), public.admin_set_phone(text, text, text), public.ping()
+  public.admin_set_paid(text, text, boolean), public.admin_set_phone(text, text, text), public.ping(),
+  public.admin_add_receipt(text, text, text, text, text), public.admin_get_receipt(text, text), public.admin_delete_receipt(text, text)
   from public, anon, authenticated;
 grant execute on function public.get_invitation(text), public.save_rsvp(text, jsonb, text),
   public.admin_summary(text), public.admin_set_paid(text, text, boolean), public.admin_set_phone(text, text, text),
-  public.ping() to anon, authenticated;
+  public.ping(), public.admin_add_receipt(text, text, text, text, text), public.admin_get_receipt(text, text),
+  public.admin_delete_receipt(text, text) to anon, authenticated;
