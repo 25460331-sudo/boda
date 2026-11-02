@@ -101,10 +101,11 @@ end $$;
 -- Texto del pago de la tarjeta (solo se devuelve a invitaciones que pagan)
 create or replace function public.payment_note_() returns text
 language sql stable security definer set search_path = public as $$
-  select 'Hacemos este festejo entre todos para poder celebrar juntos. ' ||
-         'El valor de la tarjeta por invitado es de ' || coalesce(value ->> 'card_price', '') || '. ' ||
-         '¡Te esperamos para brindar! Por favor, confirmar asistencia y abonar hasta el ' ||
-         coalesce(value ->> 'payment_deadline', '') || '.'
+  select 'Hacemos este festejo entre todos para poder celebrar juntos.' || E'\n' ||
+         'El valor de la tarjeta por invitado es de ' || coalesce(value ->> 'card_price', '') ||
+         ' (con posibilidad de abonarla en hasta 3 cuotas).' || E'\n' ||
+         'Por favor, confirmar asistencia y abonar hasta el ' || coalesce(value ->> 'payment_deadline', '') ||
+         '. ¡Te esperamos para brindar!'
     from (select coalesce((select value from public.settings where key = 'config'), '{}'::jsonb) as value) s
 $$;
 

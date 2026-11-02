@@ -227,7 +227,6 @@ body.theme-green .flora-card{display:none}
 .answer span{display:block;padding:.75rem .4rem;font-family:var(--caps);font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--gold);color:var(--ink);transition:background .2s,color .2s,border-color .2s;line-height:1.3}
 .answer input:checked+span{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .answer input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
-.pay-note{margin:0 0 1.4rem;padding:1rem 1.1rem;border:1px solid var(--gold);background:var(--soft);color:var(--ink);font-size:1.02rem;line-height:1.55;text-wrap:pretty}
 .deadline{margin:0 0 1.4rem;color:var(--ink-2);font-size:1rem}
 .deadline strong{color:var(--ink);font-weight:500}
 .rsvp-card .btn{width:100%}
@@ -281,3 +280,5 @@ body.theme-card .closing{padding-top:calc(min(max(100vw,820px),1500px)*.27)}
   .code-panel{padding:1.4rem 1.4rem 1.2rem}
   .code-panel h2{font-size:42px;margin:.2rem 0 .6rem}
 }
+
+.gift-text + .gift-text{margin-top:1rem}

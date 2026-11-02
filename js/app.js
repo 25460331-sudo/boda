@@ -30,7 +30,7 @@
       ok: true, invitationId: 'DEMO-PAGA', groupName: 'Familia Demo con tarjeta',
       guests: [{id:'3', name:'Invitado 1', attendance:''}, {id:'4', name:'Invitado 2', attendance:''}],
       paysCard: true,
-      paymentNote: 'Hacemos este festejo entre todos para poder celebrar juntos. El valor de la tarjeta por invitado es de $000.000. ¡Te esperamos para brindar! Por favor, confirmar asistencia y abonar hasta el 31/01/2027.',
+      paymentNote: 'Hacemos este festejo entre todos para poder celebrar juntos.\nEl valor de la tarjeta por invitado es de $000.000 (con posibilidad de abonarla en hasta 3 cuotas).\nPor favor, confirmar asistencia y abonar hasta el 31/01/2027. ¡Te esperamos para brindar!',
       bank: { name: 'Banco de ejemplo', holders: 'Titular de ejemplo', cbu: '0000000000000000000000', alias: 'alias.ejemplo' }
     }
   };
@@ -157,6 +157,20 @@
   const bankData = document.getElementById('bankData');
   const copyStatus = document.getElementById('copyStatus');
 
+  // Invitaciones que pagan la tarjeta: en lugar de "Regalos" se muestra el mensaje de pago (3 líneas que llegan de la base).
+  const giftTitle = document.getElementById('giftTitle');
+  const giftText2 = document.getElementById('giftText2');
+  const giftDefault = { title: giftTitle.textContent, text: giftText.textContent };
+  function applyGift(note) {
+    const lines = String(note || '').split('\n').map(s => s.trim()).filter(Boolean);
+    const pays = lines.length >= 3;
+    giftMicro.hidden = pays;
+    giftTitle.textContent = pays ? lines[0] : giftDefault.title;
+    giftText.textContent = pays ? lines[1] : giftDefault.text;
+    giftText2.textContent = pays ? lines[2] : '';
+    giftText2.hidden = !pays;
+  }
+
   const giftLabels = { show: 'Ver datos bancarios', hide: 'Ocultar datos bancarios' };
 
   function refreshGiftToggle() {
@@ -249,9 +263,7 @@
 
     document.getElementById('rsvpMessage').value = data.message || '';
     fillBank(data.bank);
-    const payNote = document.getElementById('payNote');
-    payNote.textContent = data.paymentNote || '';
-    payNote.hidden = !data.paymentNote;
+    applyGift(data.paymentNote);
     applyVariant(!!data.paysCard); // Privado: jamás se muestra si paga o no paga.
   }
 
